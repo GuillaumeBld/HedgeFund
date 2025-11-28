@@ -1,0 +1,159 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoHedge Visualization</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 20px;
+        }
+        h1 {
+            color: #38bdf8;
+            margin: 0;
+        }
+        button {
+            background-color: #38bdf8;
+            color: #0f172a;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0ea5e9;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background-color: #1e293b;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #94a3b8;
+            font-size: 1.2rem;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+        }
+        .log-entry {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #0f172a;
+            border-radius: 5px;
+            border-left: 3px solid #38bdf8;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry.Director { border-color: #a855f7; }
+        .log-entry.Quant { border-color: #22c55e; }
+        .log-entry.Risk { border-color: #ef4444; }
+        .log-entry.Execution { border-color: #f59e0b; }
+        
+        .status {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #1e293b;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AutoHedge Visualization</h1>
+            <button id="startBtn">Start Simulation</button>
+        </header>
+        
+        <div id="status" class="status">Ready to start...</div>
+
+        <div id="logs" class="grid">
+            <!-- Logs will appear here -->
+        </div>
+    </div>
+
+    <script>
+        const startBtn = document.getElementById('startBtn');
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'status') {
+                statusDiv.textContent = data.content;
+            } else if (data.type === 'error') {
+                statusDiv.textContent = 'Error: ' + data.content;
+                statusDiv.style.color = '#ef4444';
+            } else {
+                // Agent update
+                addLogEntry(data);
+            }
+        };
+
+        function addLogEntry(data) {
+            // Check if we already have a card for this stock
+            let stockCard = document.getElementById(`card-${data.stock}`);
+            if (!stockCard) {
+                stockCard = document.createElement('div');
+                stockCard.id = `card-${data.stock}`;
+                stockCard.className = 'card';
+                stockCard.innerHTML = `<h2>${data.stock}</h2><div class="content"></div>`;
+                logsDiv.appendChild(stockCard);
+            }
+            
+            const contentDiv = stockCard.querySelector('.content');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${data.agent}`;
+            entry.innerHTML = `<strong>${data.agent} (${data.step}):</strong><br>${data.content}`;
+            
+            // Prepend to show newest first or append? Let's append.
+            contentDiv.appendChild(entry);
+            entry.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        startBtn.onclick = async function() {
+            startBtn.disabled = true;
+            startBtn.textContent = 'Running...';
+            try {
+                await fetch('/start', { method: 'POST' });
+            } catch (e) {
+                console.error(e);
+                startBtn.disabled = false;
+                startBtn.textContent = 'Start Simulation';
+            }
+        };
+    </script>
+</body>
+</html>

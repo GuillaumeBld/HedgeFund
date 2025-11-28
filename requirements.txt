@@ -1,8 +1,11 @@
 swarms
-tickr-agent
+
 pydantic
 loguru
-swarm-models
+
 fastapi 
 uvicorn 
-requests 
+requests
+yfinance 
+openbb
+openbb-yfinance

@@ -11,7 +11,9 @@ import signal
 import sys
 
 model = OpenAIChat(
-    model_name="gpt-4o", openai_api_key=os.getenv("OPENAI_API_KEY")
+    model_name="openai/gpt-4o",
+    openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+    openai_api_base=os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"),
 )
 
 

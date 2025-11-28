@@ -1,12 +1,22 @@
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 
 from loguru import logger
 from pydantic import BaseModel
 from swarms import Agent, Conversation
-from tickr_agent.main import TickrAgent
+from swarm_models import OpenAIChat
+from autohedge.agents.tickr_agent.main import TickrAgent
+import os
+
+def get_openrouter_llm(model_name: str, temperature: float = 0.1):
+    return OpenAIChat(
+        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+        openai_api_base=os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"),
+        model_name=model_name,
+        temperature=temperature,
+    )
 
 
 # Director Agent - Manages overall strategy and coordinates other agents
@@ -91,7 +101,7 @@ Your analysis should be data-driven, nuanced, and avoid simplistic conclusions. 
 sentiment_agent = Agent(
     agent_name="Sentiment-Agent",
     system_prompt=SENTIMENT_PROMPT,
-    model_name="gpt-4o-mini",
+    llm=get_openrouter_llm("openai/gpt-4o-mini"),
     output_type="str",
     max_loops=1,
     verbose=True,
@@ -161,7 +171,7 @@ class RiskManager:
         self.risk_agent = Agent(
             agent_name="Risk-Manager",
             system_prompt=RISK_PROMPT,
-            model_name="groq/deepseek-r1-distill-llama-70b",
+            llm=get_openrouter_llm("openai/gpt-4o"),
             output_type="str",
             max_loops=1,
             verbose=True,
@@ -212,7 +222,7 @@ class ExecutionAgent:
         self.execution_agent = Agent(
             agent_name="Execution-Agent",
             system_prompt=EXECUTION_PROMPT,
-            model_name="groq/deepseek-r1-distill-llama-70b",
+            llm=get_openrouter_llm("openai/gpt-4o"),
             output_type="str",
             max_loops=1,
             verbose=True,
@@ -264,7 +274,7 @@ class TradingDirector:
         self.director_agent = Agent(
             agent_name="Trading-Director",
             system_prompt=DIRECTOR_PROMPT,
-            model_name="groq/deepseek-r1-distill-llama-70b",
+            llm=get_openrouter_llm("openai/gpt-4o"),
             output_type="str",
             max_loops=1,
             verbose=True,
@@ -370,7 +380,7 @@ class QuantAnalyst:
         self.quant_agent = Agent(
             agent_name="Quant-Analyst",
             system_prompt=QUANT_PROMPT,
-            model_name="groq/deepseek-r1-distill-llama-70b",
+            llm=get_openrouter_llm("openai/gpt-4o"),
             output_type="str",
             max_loops=1,
             verbose=True,
@@ -441,6 +451,7 @@ class AutoHedge:
         output_file_path: str = None,
         strategy: str = None,
         output_type: str = "list",
+        callback: Callable = None,
     ):
         """
         Initialize the AutoHedge class.
@@ -451,6 +462,7 @@ class AutoHedge:
             description (str, optional): Description of the trading system. Defaults to "fully autonomous hedgefund".
             output_dir (str, optional): Directory for storing outputs. Defaults to "outputs".
             output_file_path (str, optional): Path to the output file. Defaults to None.
+            callback (Callable, optional): Callback function for real-time updates.
         """
         self.name = name
         self.description = description
@@ -460,6 +472,7 @@ class AutoHedge:
         self.strategy = strategy
         self.output_type = output_type
         self.output_file_path = output_file_path
+        self.callback = callback
         logger.info("Initializing Automated Trading System")
         self.director = TradingDirector(stocks, output_dir)
         self.quant = QuantAnalyst()
@@ -502,6 +515,8 @@ class AutoHedge:
                     role=self.director.agent_name,
                     content=f"Stock: {stock}\nMarket Data: {market_data}\nThesis: {thesis}",
                 )
+                if self.callback:
+                    self.callback({"agent": "Director", "stock": stock, "content": thesis, "step": "thesis"})
 
                 # Perform analysis
                 analysis = self.quant.analyze(
@@ -519,6 +534,8 @@ class AutoHedge:
                 self.conversation.add(
                     role=self.quant.agent_name, content=analysis
                 )
+                if self.callback:
+                    self.callback({"agent": "Quant", "stock": stock, "content": analysis, "step": "analysis"})
 
                 # Assess risk
                 risk_assessment = self.risk.assess_risk(
@@ -528,6 +545,8 @@ class AutoHedge:
                 self.conversation.add(
                     role=self.risk.agent_name, content=risk_assessment
                 )
+                if self.callback:
+                    self.callback({"agent": "Risk", "stock": stock, "content": risk_assessment, "step": "risk_assessment"})
 
                 # # Generate order if approved
                 order = self.execution.generate_order(
@@ -537,6 +556,8 @@ class AutoHedge:
                 self.conversation.add(
                     role=self.execution.agent_name, content=order
                 )
+                if self.callback:
+                    self.callback({"agent": "Execution", "stock": stock, "content": str(order), "step": "order"})
 
                 order = str(order)
 
@@ -548,6 +569,8 @@ class AutoHedge:
                 self.conversation.add(
                     role=self.director.agent_name, content=decision
                 )
+                if self.callback:
+                    self.callback({"agent": "Director", "stock": stock, "content": decision, "step": "decision"})
 
             #     log = AutoHedgeOutput(
             #         thesis=thesis,

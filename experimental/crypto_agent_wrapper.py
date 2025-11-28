@@ -9,10 +9,11 @@ from cryptoagent.prompts import CRYPTO_AGENT_SYS_PROMPT
 
 class CryptoAgentWrapper:
     def __init__(self):
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.model = OpenAIChat(
             openai_api_key=self.api_key,
-            model_name="gpt-4o-mini",
+            openai_api_base=os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"),
+            model_name="openai/gpt-4o-mini",
             temperature=0.1,
         )
         self.input_agent = Agent(
